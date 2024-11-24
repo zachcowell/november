@@ -18,6 +18,8 @@ export class MainScene extends Phaser.Scene {
   }
 
   create() {
+    this.createCRTShader();
+    this.createAnimations();
     this.cameras.main.setBounds(0, 0, 20 * 32, 20 * 32);
     this.cameras.main.setBackgroundColor('#000000');
 
@@ -29,6 +31,37 @@ export class MainScene extends Phaser.Scene {
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) =>
       this.handleTileClick(pointer),
     );
+
+    const sprite2 = this.add.sprite(32, 64, 'BatR');
+    sprite2.setOrigin(0, 0.5);
+    sprite2.setScale(2);
+    sprite2.play('BatR');
+  }
+
+  createCRTShader() {
+    const postFxPlugin = this.plugins.get('rexCrtPipeline') as any;
+
+    postFxPlugin.add(this.cameras.main, {
+      warpX: 0,
+      warpY: 0,
+      scanLineStrength: 0.2,
+      scanLineWidth: 1024,
+    });
+  }
+
+  createAnimations() {
+    const g = this.game as CustomGame;
+    g.assets.forEach((asset) => {
+      this.anims.create({
+        key: asset.name, // Key for the animation; we make it the same as the asset name
+        frames: this.anims.generateFrameNumbers(asset.name, {
+          start: 0, // Starting frame index
+          end: -1, // Use -1 to include all frames
+        }),
+        frameRate: 6, // Frames per second
+        repeat: -1, // Loop indefinitely (-1 for infinite, 0 for no loop)
+      });
+    });
   }
 
   update() {
@@ -87,12 +120,12 @@ export class MainScene extends Phaser.Scene {
   }
   checkCollision(x: number, y: number) {
     const tile = this.map!.getTileAt(x, y);
-    return tile.properties.collide == true;
+    return tile?.properties.collide == true;
   }
 
-  getTileID(x: number, y: number) {
+  getTileID(x: number, y: number): number {
     const tile = this.map!.getTileAt(x, y);
-    return tile.index;
+    return tile?.index ?? -1;
   }
 
   createMap() {
@@ -100,7 +133,10 @@ export class MainScene extends Phaser.Scene {
     this.map = this.make.tilemap({ key: 'map' });
     // The first parameter is the name of the tileset in Tiled and the second parameter is the key
     // of the tileset image used when loading the file in preload.
-    const tileset = this.map.addTilesetImage('tiles', 'tileset');
+    const tileset = this.map.addTilesetImage(
+      'tiles',
+      'tileset',
+    ) as Phaser.Tilemaps.Tileset;
     this.map.createLayer(0, tileset, 0, 0);
   }
 
@@ -112,9 +148,20 @@ export class MainScene extends Phaser.Scene {
     // Rounds down to nearest tile
     const pointerTileX = this.map!.worldToTileX(worldPoint.x);
     const pointerTileY = this.map!.worldToTileY(worldPoint.y);
-    this.marker!.x = this.map!.tileToWorldX(pointerTileX);
-    this.marker!.y = this.map!.tileToWorldY(pointerTileY);
-    this.marker!.setVisible(!this.checkCollision(pointerTileX, pointerTileY));
+    if (!pointerTileX || !pointerTileY) return;
+    this.marker!.x = this.map!.tileToWorldX(pointerTileX)!;
+    this.marker!.y = this.map!.tileToWorldY(pointerTileY)!;
+
+    // Check if pointer is within map bounds
+    const outOfBounds =
+      pointerTileX < 0 ||
+      pointerTileX >= this.map!.width ||
+      pointerTileY < 0 ||
+      pointerTileY >= this.map!.height;
+
+    this.marker!.setVisible(
+      !outOfBounds && !this.checkCollision(pointerTileX, pointerTileY),
+    );
   }
 
   handleTileClick(pointer: Phaser.Input.Pointer) {
@@ -152,6 +199,6 @@ export class MainScene extends Phaser.Scene {
       });
     }
 
-    this.tweens.timeline({ tweens });
+    this.tweens.chain({ tweens });
   }
 }
